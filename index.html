@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo da memoria SESI</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --sesi-red: #E31937;
+            --senai-blue: #005CAA;
+            --bg-color: #f4f4f9;
+            --text-color: #333;
+            --card-bg: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            color: var(--senai-blue);
+            text-transform: uppercase;
+            font-size: 2.2rem;
+            margin-bottom: 15px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        h1 span {
+            color: var(--sesi-red);
+        }
+
+        .stats-container {
+            display: flex;
+            justify-content: space-between;
+            background: var(--card-bg);
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-left: 5px solid var(--sesi-red);
+            border-right: 5px solid var(--senai-blue);
+        }
+
+        .stats-container div i {
+            margin-right: 8px;
+            color: var(--senai-blue);
+        }
+
+        .memory-game {
+            width: 100%;
+            max-width: 640px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            perspective: 1000px;
+            margin-bottom: 30px;
+        }
+
+        .memory-card {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            cursor: pointer;
+            transform-style: preserve-3d;
+            transform: scale(1);
+            transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+        }
+
+        .memory-card:active {
+            transform: scale(0.97);
+            transition: transform 0.2s;
+        }
+
+        .memory-card.flip {
+            transform: rotateY(180deg);
+        }
+
+        .front-face,
+        .back-face {
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            position: absolute;
+            border-radius: 10px;
+            background: var(--card-bg);
+            backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .front-face {
+            transform: rotateY(180deg);
+            font-size: 3rem;
+            color: var(--senai-blue);
+            border: 2px solid var(--senai-blue);
+        }
+
+        .back-face {
+            background: var(--sesi-red);
+            color: white;
+            font-size: 2.5rem;
+            border: 2px solid #c7162f;
+        }
+
+        .btn-restart {
+            background-color: var(--senai-blue);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn-restart:hover {
+            background-color: #004582;
+            transform: translateY(-2px);
+        }
+
+        .btn-restart:active {
+            transform: translateY(0);
+        }
+
+        @media (max-width: 500px) {
+            .memory-game {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 10px;
+            }
+            .front-face { font-size: 2rem; }
+            .back-face { font-size: 1.8rem; }
+            h1 { font-size: 1.8rem; }
+            .stats-container { font-size: 1rem; padding: 10px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Jogo da memoria <span>SESI</span></h1>
+        <div class="stats-container">
+            <div>
+                <i class="fa-solid fa-clock"></i>
+                Tempo: <span id="time">0</span>s
+            </div>
+            <div>
+                <i class="fa-solid fa-star"></i>
+                Pontos: <span id="score">0</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="memory-game" id="game-board">
+    </div>
+
+    <button class="btn-restart" onclick="initGame()">
+        <i class="fa-solid fa-rotate-right"></i> Reiniciar Jogo
+    </button>
+
+    <script>
+        const board = document.getElementById('game-board');
+        const timeDisplay = document.getElementById('time');
+        const scoreDisplay = document.getElementById('score');
+
+        // Ícones temáticos (indústria, educação, tecnologia)
+        const icons = [
+            'fa-gear', 'fa-wrench', 'fa-industry', 'fa-laptop-code',
+            'fa-robot', 'fa-lightbulb', 'fa-book', 'fa-ruler-combined'
+        ];
+
+        let cards = [];
+        let hasFlippedCard = false;
+        let lockBoard = false;
+        let firstCard, secondCard;
+        let matchedPairs = 0;
+        
+        let score = 0;
+        let time = 0;
+        let timerInterval;
+        let gameStarted = false;
+
+        function initGame() {
+            // Resetar variáveis
+            board.innerHTML = '';
+            hasFlippedCard = false;
+            lockBoard = false;
+            firstCard = null;
+            secondCard = null;
+            matchedPairs = 0;
+            score = 0;
+            time = 0;
+            gameStarted = false;
+            
+            scoreDisplay.textContent = score;
+            timeDisplay.textContent = time;
+            clearInterval(timerInterval);
+
+            // Criar baralho duplicando os ícones
+            cards = [...icons, ...icons];
+            shuffleCards();
+            createBoard();
+        }
+
+        function shuffleCards() {
+            for (let i = cards.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [cards[i], cards[j]] = [cards[j], cards[i]];
+            }
+        }
+
+        function createBoard() {
+            cards.forEach(icon => {
+                const cardElement = document.createElement('div');
+                cardElement.classList.add('memory-card');
+                cardElement.dataset.icon = icon;
+
+                cardElement.innerHTML = `
+                    <div class="front-face">
+                        <i class="fa-solid ${icon}"></i>
+                    </div>
+                    <div class="back-face">
+                        <i class="fa-solid fa-s"></i>
+                    </div>
+                `;
+
+                cardElement.addEventListener('click', flipCard);
+                board.appendChild(cardElement);
+            });
+        }
+
+        function startTimer() {
+            if (!gameStarted) {
+                gameStarted = true;
+                timerInterval = setInterval(() => {
+                    time++;
+                    timeDisplay.textContent = time;
+                }, 1000);
+            }
+        }
+
+        function flipCard() {
+            if (lockBoard) return;
+            if (this === firstCard) return;
+
+            startTimer();
+
+            this.classList.add('flip');
+
+            if (!hasFlippedCard) {
+                // Primeiro clique
+                hasFlippedCard = true;
+                firstCard = this;
+                return;
+            }
+
+            // Segundo clique
+            secondCard = this;
+            checkForMatch();
+        }
+
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.icon === secondCard.dataset.icon;
+
+            if (isMatch) {
+                disableCards();
+                updateScore(10); // +10 pontos por acerto
+                matchedPairs++;
+                
+                // Checar fim de jogo
+                if (matchedPairs === icons.length) {
+                    clearInterval(timerInterval);
+                    setTimeout(() => {
+                        alert(`Parabéns! Você completou o jogo em ${time} segundos com ${score} pontos.`);
+                    }, 500);
+                }
+            } else {
+                unflipCards();
+                updateScore(-2); // -2 pontos por erro
+            }
+        }
+
+        function updateScore(points) {
+            score += points;
+            if (score < 0) score = 0; // Não deixa a pontuação ficar negativa
+            scoreDisplay.textContent = score;
+        }
+
+        function disableCards() {
+            firstCard.removeEventListener('click', flipCard);
+            secondCard.removeEventListener('click', flipCard);
+            resetBoard();
+        }
+
+        function unflipCards() {
+            lockBoard = true;
+
+            setTimeout(() => {
+                firstCard.classList.remove('flip');
+                secondCard.classList.remove('flip');
+                resetBoard();
+            }, 1000);
+        }
+
+        function resetBoard() {
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+        }
+
+        // Iniciar o jogo ao carregar a página
+        window.onload = initGame;
+    </script>
+</body>
+</html>
